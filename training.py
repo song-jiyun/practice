@@ -105,8 +105,7 @@ def training(end_epoch, model, train_loader, test_loader, optimizer, criterion, 
     best_loss = float('inf')
     best_accuracy = 0.0
 
-    today = datetime.datetime.now().strftime("%y%m%d")
-    name = f'{today}_{name}_{train_loader.batch_size}_{end_epoch}'
+    name = f'{name}_{train_loader.batch_size}_{end_epoch}'
 
     start_epoch, train_losses, test_losses, accuracies = cp.load_latest(model, optimizer, name, device=device)
 
