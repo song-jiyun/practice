@@ -1,13 +1,14 @@
 import curses
-from dataset import get_dataset_list
-from model import get_model_list
-from optimizer import get_optimizer_list
-from scheduler import get_scheduler_list
-from criterion import get_criterion_list
+from datasets import get_dataset_list
+from models import get_model_list
+from optimizers import get_optimizer_list
+from schedulers import get_scheduler_list
+from criterions import get_criterion_list
 
 config = {
     "dataset": {
         "dataset": get_dataset_list()[0],
+        "batch_size": 64,
     },
 
     "model": {
@@ -23,15 +24,11 @@ config = {
 
     "scheduler": {
         "scheduler": get_scheduler_list()[0],
+        "epochs": 300,
     },
 
     "criterion": {
         "criterion": get_criterion_list()[0],
-    },
-
-    "training": {
-        "epochs": 300,
-        "batch_size": 64,
     },
 
     "cutmix": {    
@@ -146,12 +143,9 @@ def configure(stdscr):
                 #criterion
                 configure_criterion(stdscr)
             elif selected == 5:
-                #training
-                configure_training(stdscr)
-            elif selected == 6:
                 #cutmix
                 configure_cutmix(stdscr)
-            elif selected == 7:
+            elif selected == 6:
                 # 뒤로가기
                 break
 
@@ -173,7 +167,9 @@ def configure_dataset(stdscr):
             if selected == 0:
                 #dataset 변경
                 change_dataset(stdscr)
-            elif selected == 1:
+            elif selected in range(1, len(menu) - 1):
+                config['dataset'][list(config['dataset'].keys())[selected]] = int(input_float(stdscr, menu, selected))
+            else:
                 #뒤로가기
                 break
 
@@ -295,7 +291,9 @@ def configure_scheduler(stdscr):
             if selected == 0:
                 #scheduler 변경
                 change_scheduler(stdscr)
-            elif selected == 1:
+            elif selected in range(1, len(menu) - 1):
+                config['scheduler'][list(config['scheduler'].keys())[selected]] = int(input_float(stdscr, menu, selected))
+            else:
                 #뒤로가기
                 break
 

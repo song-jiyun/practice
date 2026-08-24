@@ -11,7 +11,7 @@ model_list = {
     "ViT-Base/32": models.vit_b_32,
     "ViT-Large/16": models.vit_l_16,
     "ViT-Large/32": models.vit_l_32,
-    "ViT-Huge/14": models.vit_b_16,
+    "ViT-Huge/14": models.vit_h_14,
 }
 
 def get_model_list():
