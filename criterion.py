@@ -1,13 +1,13 @@
 import torch.nn as nn
 
-CRITERION_REGISTRY = {
+criterion_list = {
     "CrossEntropyLoss": nn.CrossEntropyLoss,
     "MSELoss": nn.MSELoss,
 }
 
 def get_criterion_list():
-    return list(CRITERION_REGISTRY.keys())
+    return list(criterion_list.keys())
 
 def load_criterion(name):
-    criterion_cls = CRITERION_REGISTRY[name]
+    criterion_cls = criterion_list[name]
     return criterion_cls()
