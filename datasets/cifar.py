@@ -43,7 +43,7 @@ def load_cifar100():
     transform_train = transforms.Compose([
         transforms.RandomCrop(image_size, padding=4),
         transforms.RandomHorizontalFlip(),
-        transforms.AutoAugment(transforms.AutoAugmentPolicy.CIFAR100),
+        transforms.AutoAugment(transforms.AutoAugmentPolicy.CIFAR10),
         transforms.ToTensor(),
         transforms.Normalize(mean, std)
     ])

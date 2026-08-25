@@ -1,6 +1,7 @@
+import torch
 import curses
-from datasets import get_dataset_list
-from models import get_model_list
+from datasets import get_dataset_list, load_dataset
+from models import get_model_list, load_model
 from optimizers import get_optimizer_list
 from schedulers import get_scheduler_list
 from criterions import get_criterion_list
@@ -13,6 +14,8 @@ config = {
 
     "model": {
         "model": get_model_list()[0],
+        "pretrained": True,
+        "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     },
 
     "optimizer": {
@@ -108,6 +111,7 @@ def main(stdscr):
             elif selected == 1:
                 #학습 시작
                 start(stdscr)
+                stdscr.getch()
             elif selected == 2:
                 #나가기
                 return
@@ -210,6 +214,18 @@ def configure_model(stdscr):
                 #model 변경
                 change_model(stdscr)
             elif selected == 1:
+                #pretrained
+                if config["model"]["pretrained"] == True:
+                    config["model"]["pretrained"] = False
+                else:
+                    config["model"]["pretrained"] = True
+            elif selected == 2:
+                #device
+                if config["model"]["device"] == torch.device("cuda"):
+                    config["model"]["device"] = torch.device("cpu")
+                else:
+                    config["model"]["device"] = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+            else:
                 #뒤로가기
                 break
 
@@ -400,7 +416,25 @@ def configure_cutmix(stdscr):
                 break
 
 def start(stdscr):
-    pass
+    train_loader, test_loader, info = load_dataset(config["dataset"])
+    model = load_model(config["model"], info)
+
+    images, labels = next(iter(train_loader))
+    device = config["model"]["device"]
+    
+    images = images.to(device)
+    labels = labels.to(device)
+
+    outputs = model(images)
+
+    print(f"input: {tuple(images.shape)}")
+    print(f"label: {tuple(labels.shape)}")
+    print(f"output: {tuple(outputs.shape)}")
+    print(f"info: {info}")
+
+    assert images.shape[1] == info["in_channels"]
+    assert outputs.shape == (images.shape[0], info["num_classes"])
+
 
 if __name__ == "__main__":
     curses.wrapper(main)
