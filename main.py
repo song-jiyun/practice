@@ -435,20 +435,6 @@ def start(stdscr):
 
     optimizer = load_optimizer(config["optimizer"], model)
 
-    images, labels = next(iter(train_loader))
-    images = images.to(config["model"]["device"])
-    labels = labels.to(config["model"]["device"])
-
-    outputs = model(images)
-    loss = torch.nn.functional.cross_entropy(outputs, labels)
-
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-
-    print("loss:", float(loss.item()))
-    print("optimizer:", type(optimizer).__name__)
-    print("param grad exists:", all(p.grad is not None for p in model.parameters()))
 
 if __name__ == "__main__":
     curses.wrapper(main)
