@@ -2,12 +2,13 @@ from torchvision import models
 
 from .resnet import load_resnet18, load_resnet34, load_resnet50
 from .vit import load_vitb16, load_vitb32, load_vitl16, load_vitl32, load_vith14
+from .custom import load_customnet
 
 class Net():
     pass
 
 model_list = {
-    #"CUSTOM": Net,
+    "CUSTOM": load_customnet,
     "ResNet18": load_resnet18,
     "ResNet34": load_resnet34,
     "ResNet50": load_resnet50,
@@ -26,6 +27,11 @@ def load_model(config, info):
     pretrained = config["pretrained"]
     device = config["device"]
 
-    model = model_list[name](pretrained, info).to(device)
+    model = model_list[name](pretrained, info)
+    
+    if model is None:
+        return None
+    else:
+        model = model.to(device)
 
     return model

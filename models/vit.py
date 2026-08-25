@@ -6,6 +6,9 @@ def load_vit(model, info):
     in_channels = info["in_channels"]
     image_size = info["image_size"]
 
+    if image_size != 224:
+        return None
+
     conv_proj = model.conv_proj
     if conv_proj.in_channels != in_channels:
         model.conv_proj = nn.Conv2d(in_channels, conv_proj.out_channels, kernel_size=conv_proj.kernel_size, stride=conv_proj.stride, padding=conv_proj.padding, bias=conv_proj.bias is not None)

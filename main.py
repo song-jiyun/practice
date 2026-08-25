@@ -67,7 +67,6 @@ def draw_menu(stdscr, title, options, selected):
                 row += 1
                 stdscr.addstr(row, right_x + 4, f"{key1}: {value1}")
             
-
     stdscr.refresh()
 
 def input_float(stdscr, menu, selected):
@@ -88,6 +87,15 @@ def input_float(stdscr, menu, selected):
 
 def main(stdscr):
     curses.curs_set(0)
+    if curses.has_colors():
+        curses.start_color()
+        try:
+            curses.use_default_colors()
+        except Exception:
+            pass
+        # pair 1: green text on default background
+        curses.init_pair(1, -1, curses.COLOR_GREEN)
+    
     stdscr.nodelay(False)
 
     menu = [
@@ -417,24 +425,13 @@ def configure_cutmix(stdscr):
 
 def start(stdscr):
     train_loader, test_loader, info = load_dataset(config["dataset"])
-    model = load_model(config["model"], info)
-
-    images, labels = next(iter(train_loader))
-    device = config["model"]["device"]
     
-    images = images.to(device)
-    labels = labels.to(device)
-
-    outputs = model(images)
-
-    print(f"input: {tuple(images.shape)}")
-    print(f"label: {tuple(labels.shape)}")
-    print(f"output: {tuple(outputs.shape)}")
-    print(f"info: {info}")
-
-    assert images.shape[1] == info["in_channels"]
-    assert outputs.shape == (images.shape[0], info["num_classes"])
-
+    model = load_model(config["model"], info)
+    if model is None:
+        msg = f'{config["dataset"]["dataset"]}에서는 {config["model"]["model"]}을 사용할 수 없습니다.'
+        attr = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
+        stdscr.addstr(4, 4, msg, curses.A_REVERSE)
+        return
 
 if __name__ == "__main__":
     curses.wrapper(main)
