@@ -2,7 +2,7 @@ import torch
 import curses
 from datasets import get_dataset_list, load_dataset
 from models import get_model_list, load_model
-from optimizers import get_optimizer_list
+from optimizers import get_optimizer_list, load_optimizer
 from schedulers import get_scheduler_list
 from criterions import get_criterion_list
 
@@ -432,6 +432,23 @@ def start(stdscr):
         attr = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
         stdscr.addstr(4, 4, msg, curses.A_REVERSE)
         return
+
+    optimizer = load_optimizer(config["optimizer"], model)
+
+    images, labels = next(iter(train_loader))
+    images = images.to(config["model"]["device"])
+    labels = labels.to(config["model"]["device"])
+
+    outputs = model(images)
+    loss = torch.nn.functional.cross_entropy(outputs, labels)
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    print("loss:", float(loss.item()))
+    print("optimizer:", type(optimizer).__name__)
+    print("param grad exists:", all(p.grad is not None for p in model.parameters()))
 
 if __name__ == "__main__":
     curses.wrapper(main)

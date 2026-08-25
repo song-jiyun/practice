@@ -4,9 +4,6 @@ from .resnet import load_resnet18, load_resnet34, load_resnet50
 from .vit import load_vitb16, load_vitb32, load_vitl16, load_vitl32, load_vith14
 from .custom import load_customnet
 
-class Net():
-    pass
-
 model_list = {
     "CUSTOM": load_customnet,
     "ResNet18": load_resnet18,
