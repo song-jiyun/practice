@@ -4,7 +4,7 @@ from datasets import get_dataset_list, load_dataset
 from models import get_model_list, load_model
 from optimizers import get_optimizer_list, load_optimizer
 from schedulers import get_scheduler_list, load_scheduler, get_scheduler_config
-from criterions import get_criterion_list
+from criterions import get_criterion_list, load_criterion
 
 config = {
     "dataset": {
@@ -438,6 +438,7 @@ def start(stdscr):
 
     optimizer = load_optimizer(config["optimizer"], model)
     scheduler = load_scheduler(config["scheduler"], optimizer, config["training"]["epoch"])
+    criterion = load_criterion(config["criterion"], info)
 
 if __name__ == "__main__":
     curses.wrapper(main)
