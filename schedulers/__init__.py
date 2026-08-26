@@ -48,3 +48,12 @@ def load_scheduler(config, optimizer, epoch):
     scheduler = scheduler_list[name]['loader'](config, optimizer, epoch)
 
     return scheduler
+
+def step_scheduler(config, scheduler, metric):
+    name = config["scheduler"]
+    scheduler_type = scheduler_list[name]["type"]
+
+    if scheduler_type == "epoch":
+        scheduler.step()
+    elif scheduler_type == "metric":
+        scheduler.step(metric)

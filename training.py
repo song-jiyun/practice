@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 import checkpoint as cp
 from plot_utils import save_training_curve
+from schedulers import step_scheduler
 
 def rand_bbox(size, lam):
     # size is (N, C, H, W)
@@ -100,14 +101,21 @@ def test(model, test_loader, criterion, device='cpu'):
     print(f'[{ts}] Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} ({accuracy:.2f}%)')
     return test_loss, accuracy
 
-def training(end_epoch, model, train_loader, test_loader, optimizer, criterion, scheduler=None,
-            name='training', device='cpu', cutmix_prob=0.0, cutmix_alpha=1.0):
-    best_loss = float('inf')
-    best_accuracy = 0.0
+def training(config, model, train_loader, test_loader, optimizer, scheduler, criterion):
+    end_epoch = config["training"]["epoch"]
+    device = config["model"]["device"]
 
-    name = f'{name}_{train_loader.batch_size}_{end_epoch}'
+    cutmix_prob = config["cutmix"]["prob"]
+    cutmix_alpha = config["cutmix"]["alpha"]
 
-    start_epoch, train_losses, test_losses, accuracies = cp.load_latest(model, optimizer, name, device=device)
+    seed = config["training"]["seed"]
+
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    name = f'{config['dataset']['dataset']}_{config['model']['model']}_{config['optimizer']['optimizer']}_{config['scheduler']['scheduler']}_{config['criterion']['criterion']}_{train_loader.batch_size}'
+
+    start_epoch, best_loss, best_accuracy, train_losses, test_losses, accuracies = cp.load_latest(model, optimizer, scheduler, name, device=device)
 
     for epoch in range(start_epoch, end_epoch + 1):
         ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -116,22 +124,22 @@ def training(end_epoch, model, train_loader, test_loader, optimizer, criterion, 
         train_loss = train(model, train_loader, optimizer, criterion, device=device, cutmix_prob=cutmix_prob, cutmix_alpha=cutmix_alpha)
         test_loss, accuracy = test(model, test_loader, criterion, device=device)
 
+        step_scheduler(config["scheduler"], scheduler, test_loss)
+
         train_losses.append(train_loss)
         test_losses.append(test_loss)
         accuracies.append(accuracy)
-
-        scheduler.step() if scheduler is not None else None
 
         if accuracy > best_accuracy:
             best_accuracy = accuracy
             best_loss = test_loss
             cp.save_best(model, name)
-            cp.save_latest(model, optimizer, epoch, train_losses, test_losses, accuracies, name)
+            cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
         elif accuracy == best_accuracy and test_loss < best_loss - 1e-4:
             best_loss = test_loss
             cp.save_best(model, name)
-            cp.save_latest(model, optimizer, epoch, train_losses, test_losses, accuracies, name)
+            cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
         elif epoch % 5 == 0:
-            cp.save_latest(model, optimizer, epoch, train_losses, test_losses, accuracies, name)
+            cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
 
         save_training_curve(train_losses, test_losses, accuracies, name)

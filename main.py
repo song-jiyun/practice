@@ -1,10 +1,14 @@
 import torch
 import curses
+import random
+import numpy as np
+
 from datasets import get_dataset_list, load_dataset
 from models import get_model_list, load_model
 from optimizers import get_optimizer_list, load_optimizer
 from schedulers import get_scheduler_list, load_scheduler, get_scheduler_config
 from criterions import get_criterion_list, load_criterion
+import training as tr
 
 config = {
     "dataset": {
@@ -37,7 +41,8 @@ config = {
     },
 
     "training": {
-        "epoch": 300
+        "epoch": 300,
+        "seed": 42,
     }
 }
 
@@ -426,7 +431,21 @@ def configure_training(stdscr):
                 #뒤로가기
                 break
 
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+    torch.use_deterministic_algorithms(True)
+
 def start(stdscr):
+    set_seed(config["training"]["seed"])
+
     train_loader, test_loader, info = load_dataset(config["dataset"])
     
     model = load_model(config["model"], info)
@@ -439,6 +458,10 @@ def start(stdscr):
     optimizer = load_optimizer(config["optimizer"], model)
     scheduler = load_scheduler(config["scheduler"], optimizer, config["training"]["epoch"])
     criterion = load_criterion(config["criterion"], info)
+
+    curses.endwin()
+    
+    tr.training(config, model, train_loader, test_loader, optimizer, scheduler, criterion)
 
 if __name__ == "__main__":
     curses.wrapper(main)

@@ -7,14 +7,22 @@ def path(path):
     os.makedirs(checkpoint_dir, exist_ok=True)
     return os.path.join(checkpoint_dir, path)
 
-def save_latest(model, optimizer, epoch, training_losses, test_losses, test_accuracies, name):
+def save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, test_accuracies, config, name):
     checkpoint = {
         'epoch': epoch,
+
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'training_losses': training_losses,
+        'scheduler_state_dict': scheduler.state_dict(),
+
+        'best_loss': best_loss,
+        'best_accuracy': best_accuracy,
+
+        'train_losses': train_losses,
         'test_losses': test_losses,
         'test_accuracies': test_accuracies,
+
+        'config': config
     }
 
     target = path(name+'_latest.pt')
@@ -26,20 +34,24 @@ def save_best(model, name):
     torch.save(model.state_dict(), target)
     print(f'Saved best model to {target}')
 
-def load_latest(model, optimizer, name, device='cpu'):
+def load_latest(model, optimizer, scheduler, name, device='cpu'):
     target = path(name+'_latest.pt')
     if os.path.exists(target):
         checkpoint = torch.load(target, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        training_losses = checkpoint.get('training_losses', [])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        best_loss = checkpoint.get('best_loss', float('inf'))
+        best_accuracy = checkpoint.get('best_accuracy', 0.0)
+        train_losses = checkpoint.get('train_losses', [])
         test_losses = checkpoint.get('test_losses', [])
         test_accuracies = checkpoint.get('test_accuracies', [])
+        config = checkpoint.get('config')
         epoch = checkpoint.get('epoch', 0) + 1
         print(f'Loaded checkpoint from {target}, resuming from epoch {epoch}')
-        return epoch, training_losses, test_losses, test_accuracies
+        return epoch, best_loss, best_accuracy, train_losses, test_losses, test_accuracies
     else:
-        return 1, [], [], []
+        return 1, float('inf'), 0.0, [], [], []
 
 def load_best(model, name, device='cpu'):
     target = path(name+'_model.pt')
