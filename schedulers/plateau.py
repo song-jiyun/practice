@@ -1,7 +1,7 @@
 import torch.optim.lr_scheduler as lr
 
 def load_plateaulr(config, optimizer, epoch):
-    scheduler = ReduceLROnPlateau(
+    scheduler = lr.ReduceLROnPlateau(
         optimizer,
         mode="min",
         factor=config["factor"],

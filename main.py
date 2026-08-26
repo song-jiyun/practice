@@ -3,7 +3,7 @@ import curses
 from datasets import get_dataset_list, load_dataset
 from models import get_model_list, load_model
 from optimizers import get_optimizer_list, load_optimizer
-from schedulers import get_scheduler_list, get_scheduler_config, load_scheduler
+from schedulers import get_scheduler_list, load_scheduler, get_scheduler_config
 from criterions import get_criterion_list
 
 config = {
@@ -25,10 +25,7 @@ config = {
         "weight_decay": 5e-4,
     },
 
-    "scheduler": {
-        "scheduler": get_scheduler_list()[0],
-        **get_scheduler_config(get_scheduler_list()[0])
-    },
+    "scheduler": get_scheduler_config(get_scheduler_list()[0]),
 
     "criterion": {
         "criterion": get_criterion_list()[0],
@@ -440,7 +437,7 @@ def start(stdscr):
         return
 
     optimizer = load_optimizer(config["optimizer"], model)
-    scheduler = load_scheduler(config["scheduler"]["config"], optimizer, config["training"]["epoch"])
+    scheduler = load_scheduler(config["scheduler"], optimizer, config["training"]["epoch"])
 
 if __name__ == "__main__":
     curses.wrapper(main)
