@@ -3,7 +3,7 @@ import curses
 from datasets import get_dataset_list, load_dataset
 from models import get_model_list, load_model
 from optimizers import get_optimizer_list, load_optimizer
-from schedulers import get_scheduler_list
+from schedulers import get_scheduler_list, get_scheduler_config, load_scheduler
 from criterions import get_criterion_list
 
 config = {
@@ -27,7 +27,7 @@ config = {
 
     "scheduler": {
         "scheduler": get_scheduler_list()[0],
-        "epochs": 300,
+        **get_scheduler_config(get_scheduler_list()[0])
     },
 
     "criterion": {
@@ -38,6 +38,10 @@ config = {
         "prob": 0.5,
         "alpha": 1.0,
     },
+
+    "training": {
+        "epoch": 300
+    }
 }
 
 def draw_menu(stdscr, title, options, selected):
@@ -97,15 +101,13 @@ def main(stdscr):
         curses.init_pair(1, -1, curses.COLOR_GREEN)
     
     stdscr.nodelay(False)
-
-    menu = [
-        "학습 설정",
-        "학습 시작",
-        "나가기",
-    ]
     selected = 0
-
     while True:
+        menu = [
+            "학습 설정",
+            "학습 시작",
+            "나가기",
+        ]
         draw_menu(stdscr, "머신러닝 실습", menu, selected)
         key = stdscr.getch()
         if key in (curses.KEY_UP, ord('k')):
@@ -125,12 +127,12 @@ def main(stdscr):
                 return
 
 def configure(stdscr):
-    menu = [
-        f"{key} 설정" for key, value in config.items()
-    ]
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = [
+            f"{key} 설정" for key, value in config.items()
+        ]
+        menu.append("뒤로가기")
         draw_menu(stdscr, "학습 설정", menu, selected)
         key = stdscr.getch()
 
@@ -158,16 +160,20 @@ def configure(stdscr):
                 #cutmix
                 configure_cutmix(stdscr)
             elif selected == 6:
+                #training
+                configure_training(stdscr)
+            else:
                 # 뒤로가기
                 break
 
-def configure_dataset(stdscr):
-    menu = [
-        f"{key} 변경" for key, value in config['dataset'].items()
-    ]
-    menu.append("뒤로가기")
+def configure_dataset(stdscr):    
     selected = 0
     while True:
+        menu = [
+            f"{key} 변경" for key, value in config['dataset'].items()
+        ]
+        menu.append("뒤로가기")
+
         draw_menu(stdscr, "dataset 설정", menu, selected)
         key = stdscr.getch()
 
@@ -186,10 +192,10 @@ def configure_dataset(stdscr):
                 break
 
 def change_dataset(stdscr):
-    menu = get_dataset_list()
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = get_dataset_list()
+        menu.append("뒤로가기")
         draw_menu(stdscr, "dataset 변경", menu, selected)
         key = stdscr.getch()
 
@@ -204,12 +210,12 @@ def change_dataset(stdscr):
                 break
 
 def configure_model(stdscr):
-    menu = [
-        f"{key} 변경" for key, value in config['model'].items()
-    ]
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = [
+            f"{key} 변경" for key, value in config['model'].items()
+        ]
+        menu.append("뒤로가기")
         draw_menu(stdscr, "model 설정", menu, selected)
         key = stdscr.getch()
 
@@ -238,10 +244,10 @@ def configure_model(stdscr):
                 break
 
 def change_model(stdscr):
-    menu = get_model_list()
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = get_model_list()
+        menu.append("뒤로가기")
         draw_menu(stdscr, "model 변경", menu, selected)
         key = stdscr.getch()
 
@@ -256,12 +262,12 @@ def change_model(stdscr):
                 break
 
 def configure_optimizer(stdscr):
-    menu = [
-        f"{key} 변경" for key, value in config['optimizer'].items()
-    ]
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = [
+            f"{key} 변경" for key, value in config['optimizer'].items()
+        ]
+        menu.append("뒤로가기")
         draw_menu(stdscr, "optimizer 설정", menu, selected)
         key = stdscr.getch()
 
@@ -280,10 +286,10 @@ def configure_optimizer(stdscr):
                 break
 
 def change_optimizer(stdscr):
-    menu = get_optimizer_list()
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = get_optimizer_list()
+        menu.append("뒤로가기")
         draw_menu(stdscr, "optimizer 변경", menu, selected)
         key = stdscr.getch()
 
@@ -298,12 +304,12 @@ def change_optimizer(stdscr):
                 break
 
 def configure_scheduler(stdscr):
-    menu = [
-        f"{key} 변경" for key, value in config['scheduler'].items()
-    ]
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = [
+            f"{key} 변경" for key, value in config['scheduler'].items()
+        ]
+        menu.append("뒤로가기")
         draw_menu(stdscr, "scheduler 설정", menu, selected)
         key = stdscr.getch()
 
@@ -316,16 +322,16 @@ def configure_scheduler(stdscr):
                 #scheduler 변경
                 change_scheduler(stdscr)
             elif selected in range(1, len(menu) - 1):
-                config['scheduler'][list(config['scheduler'].keys())[selected]] = int(input_float(stdscr, menu, selected))
+                config['scheduler'][list(config['scheduler'].keys())[selected]] = input_float(stdscr, menu, selected)
             else:
                 #뒤로가기
                 break
 
 def change_scheduler(stdscr):
-    menu = get_scheduler_list()
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = get_scheduler_list()
+        menu.append("뒤로가기")
         draw_menu(stdscr, "scheduler 변경", menu, selected)
         key = stdscr.getch()
 
@@ -335,17 +341,17 @@ def change_scheduler(stdscr):
             selected = (selected + 1) % len(menu)
         elif key in (10, 13, ord(' ')):
             if selected in range(0, len(menu) - 1):
-                config['scheduler']['scheduler'] = menu[selected]
+                config['scheduler'] = get_scheduler_config(menu[selected])
             else:
                 break
 
 def configure_criterion(stdscr):
-    menu = [
-        f"{key} 변경" for key, value in config['criterion'].items()
-    ]
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = [
+            f"{key} 변경" for key, value in config['criterion'].items()
+        ]
+        menu.append("뒤로가기")
         draw_menu(stdscr, "criterion 설정", menu, selected)
         key = stdscr.getch()
 
@@ -362,10 +368,10 @@ def configure_criterion(stdscr):
                 break
 
 def change_criterion(stdscr):
-    menu = get_criterion_list()
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = get_criterion_list()
+        menu.append("뒤로가기")
         draw_menu(stdscr, "criterion 변경", menu, selected)
         key = stdscr.getch()
 
@@ -379,35 +385,13 @@ def change_criterion(stdscr):
             else:
                 break
 
-def configure_training(stdscr):
-    menu = [
-        f"{key} 변경" for key, value in config['training'].items()
-    ]
-    menu.append("뒤로가기")
-    selected = 0
-    while True:
-        draw_menu(stdscr, "training 설정", menu, selected)
-        key = stdscr.getch()
-
-        if key in (curses.KEY_UP, ord('k')):
-            selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
-            selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
-            if selected in range(0, len(menu) - 1):
-                #training 변경
-                config['training'][list(config['training'].keys())[selected]] = int(input_float(stdscr, menu, selected))
-            else:
-                #뒤로가기
-                break
-
 def configure_cutmix(stdscr):
-    menu = [
-        f"{key} 변경" for key, value in config['cutmix'].items()
-    ]
-    menu.append("뒤로가기")
     selected = 0
     while True:
+        menu = [
+            f"{key} 변경" for key, value in config['cutmix'].items()
+        ]
+        menu.append("뒤로가기")
         draw_menu(stdscr, "cutmix 설정", menu, selected)
         key = stdscr.getch()
 
@@ -423,6 +407,28 @@ def configure_cutmix(stdscr):
                 #뒤로가기
                 break
 
+def configure_training(stdscr):
+    selected = 0
+    while True:
+        menu = [
+            f"{key} 변경" for key, value in config['training'].items()
+        ]
+        menu.append("뒤로가기")
+        draw_menu(stdscr, "training 설정", menu, selected)
+        key = stdscr.getch()
+
+        if key in (curses.KEY_UP, ord('k')):
+            selected = (selected - 1) % len(menu)
+        elif key in (curses.KEY_DOWN, ord('j')):
+            selected = (selected + 1) % len(menu)
+        elif key in (10, 13, ord(' ')):
+            if selected in range(0, len(menu) - 1):
+                #training 변경
+                config['training'][list(config['training'].keys())[selected]] = int(input_float(stdscr, menu, selected))
+            else:
+                #뒤로가기
+                break
+
 def start(stdscr):
     train_loader, test_loader, info = load_dataset(config["dataset"])
     
@@ -434,7 +440,7 @@ def start(stdscr):
         return
 
     optimizer = load_optimizer(config["optimizer"], model)
-
+    scheduler = load_scheduler(config["scheduler"]["config"], optimizer, config["training"]["epoch"])
 
 if __name__ == "__main__":
     curses.wrapper(main)
