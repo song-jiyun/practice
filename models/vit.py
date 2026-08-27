@@ -22,35 +22,35 @@ def load_vit(model, info):
 
 def load_vitb16(pretrained, info):
     if pretrained:
-        model = models.vit_b_16(weights=models.ViT_B_16_Weights)
+        model = models.vit_b_16(weights=models.ViT_B_16_Weights.DEFAULT)
     else:
         model = models.vit_b_16()
     return load_vit(model, info)
 
 def load_vitb32(pretrained, info):
     if pretrained:
-        model = models.vit_b_32(weights=models.ViT_B_32_Weights)
+        model = models.vit_b_32(weights=models.ViT_B_32_Weights.DEFAULT)
     else:
         model = models.vit_b_32()
     return load_vit(model, info)
 
 def load_vitl16(pretrained, info):
     if pretrained:
-        model = models.vit_l_16(weights=models.ViT_L_16_Weights)
+        model = models.vit_l_16(weights=models.ViT_L_16_Weights.DEFAULT)
     else:
         model = models.vit_l_16()
     return load_vit(model, info)
 
 def load_vitl32(pretrained, info):
     if pretrained:
-        model = models.vit_l_32(weights=models.ViT_L_32_Weights)
+        model = models.vit_l_32(weights=models.ViT_L_32_Weights.DEFAULT)
     else:
         model = models.vit_l_32()
     return load_vit(model, info)
 
 def load_vith14(pretrained, info):
     if pretrained:
-        model = models.vit_h_14(weights=models.ViT_H_14_Weights)
+        model = models.vit_h_14(weights=models.ViT_H_14_Weights.DEFAULT)
     else:
         model = models.vit_h_14()
     return load_vit(model, info)

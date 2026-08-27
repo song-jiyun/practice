@@ -164,7 +164,7 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
             best_loss = test_loss
             cp.save_best(model, name)
             cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
-        elif epoch % 5 == 0:
+        elif epoch % 10 == 0:
             cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
 
         save_training_curve(train_losses, test_losses, accuracies, name)

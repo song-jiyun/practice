@@ -20,6 +20,7 @@ def load_imagenet():
     ])
 
     transform_test = transforms.Compose([
+        transforms.Resize(image_size)
         transforms.ToTensor(),
         transforms.Normalize(mean, std)
     ])

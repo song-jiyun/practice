@@ -6,7 +6,9 @@ def load_resnet(model, info):
     in_channels = info["in_channels"]
     image_size = info["image_size"]
 
-    model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+    if in_channels != 3:
+        model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        
     model.fc = nn.Linear(model.fc.in_features, num_classes)
 
     return model

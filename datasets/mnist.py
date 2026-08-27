@@ -13,7 +13,6 @@ def load_mnist():
 
     transform_train = transforms.Compose([
         transforms.RandomCrop(image_size, padding=4),
-        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean, std)
     ])
