@@ -55,12 +55,14 @@ class BottleneckBlock(nn.Module) :
         return self.relu(self.bottleneck_block(x) + self.shortcut(x))
 
 class CustomNet(nn.Module):
-    def __init__(self, block, layers, num_classes=10):
+    def __init__(self, block, layers, info):
+        num_classes = info["num_classes"]
+        input_channels = info["in_channels"]
         super().__init__()
         self.in_channels = 64
 
         self.stem = nn.Sequential(
-            nn.Conv2d(3, self.in_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(input_channels, self.in_channels, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(self.in_channels),
             nn.ReLU()
         )
@@ -112,9 +114,9 @@ class CustomNet(nn.Module):
         x = self.feature_head(x)
         return x
     
-def customnet(num_classes=10):
-    return CustomNet(ResidualBlock, [2, 2, 2, 2, 2, 2, 2], num_classes=num_classes)
+def customnet(info):
+    return CustomNet(ResidualBlock, [2, 2, 2, 2, 2, 2, 2], info)
 
 def load_customnet(pretrained, info):
-    model = customnet(info["num_classes"])
+    model = customnet(info)
     return model

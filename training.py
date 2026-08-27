@@ -41,21 +41,13 @@ def cutmix_data(x, y, alpha=1.0):
     lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (x.size()[-1] * x.size()[-2]))
     return x, y_a, y_b, lam
 
-def train(model, train_loader, optimizer, criterion, device='cpu', cutmix_prob=0.0, cutmix_alpha=1.0):
+def train(model, train_loader, optimizer, criterion, device='cpu', cutmix_prob=0.0, cutmix_alpha=1.0, callback=None):
     model.train()
     total_samples = len(train_loader.dataset)
     processed = 0
     running_loss = 0.0
 
-    progress = tqdm(
-        train_loader,
-        total=len(train_loader),
-        desc='Training',
-        leave=True,
-        dynamic_ncols=True,
-    )
-
-    for image, label in progress:
+    for batch_idx, (image, label) in enumerate(train_loader):
         image, label = image.to(device), label.to(device)
         optimizer.zero_grad()
 
@@ -72,36 +64,51 @@ def train(model, train_loader, optimizer, criterion, device='cpu', cutmix_prob=0
 
         running_loss += loss.item() * image.size(0)
         processed += image.size(0)
-        progress.set_postfix(
-            loss=f'{loss.item():.4f}',
-            samples=f'{processed}/{total_samples}',
-            refresh=True,
-        )
-
-    progress.close()
+        if callback is not None:
+            callback(
+                "train_batch_end",
+                batch=batch_idx + 1,
+                total_batches=len(train_loader),
+                loss=loss.item(),
+                processed=processed,
+                total_samples=total_samples,
+            )
 
     avg_loss = running_loss / total_samples if total_samples > 0 else 0.0
     return avg_loss
 
-def test(model, test_loader, criterion, device='cpu'):
+def test(model, test_loader, criterion, device='cpu', callback=None):
     model.eval()
     test_loss = 0
     correct = 0
+    processed = 0
+
     with torch.no_grad():
-        for image, label in test_loader:
+        for batch_idx, (image, label) in enumerate(test_loader):
             image, label = image.to(device), label.to(device)
             output = model(image)
             test_loss += criterion(output, label).item() * image.size(0)
             pred = output.argmax(dim=1, keepdim=True)
             correct += pred.eq(label.view_as(pred)).sum().item()
+            processed += image.size(0)
+
+            if callback is not None:
+                callback(
+                    "test_batch_end",
+                    batch=batch_idx + 1,
+                    total_batches=len(test_loader),
+                    accuracy=100.0 * correct / processed,
+                    processed=processed,
+                    total_samples=len(test_loader.dataset),
+                )
     
     test_loss /= len(test_loader.dataset)
     accuracy = 100. * correct / len(test_loader.dataset)
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f'[{ts}] Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} ({accuracy:.2f}%)')
+    #print(f'[{ts}] Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} ({accuracy:.2f}%)')
     return test_loss, accuracy
 
-def training(config, model, train_loader, test_loader, optimizer, scheduler, criterion):
+def training(config, model, train_loader, test_loader, optimizer, scheduler, criterion, callback=None):
     end_epoch = config["training"]["epoch"]
     device = config["model"]["device"]
 
@@ -117,12 +124,30 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
 
     start_epoch, best_loss, best_accuracy, train_losses, test_losses, accuracies = cp.load_latest(model, optimizer, scheduler, name, device=device)
 
-    for epoch in range(start_epoch, end_epoch + 1):
-        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"\n[{ts}] Epoch {epoch}/{end_epoch}")
+    if callback is not None:
+        callback(
+            "training_start",
+            start_epoch=start_epoch,
+            end_epoch=end_epoch,
+            train_batches=len(train_loader),
+            test_batches=len(test_loader),
+        )
 
-        train_loss = train(model, train_loader, optimizer, criterion, device=device, cutmix_prob=cutmix_prob, cutmix_alpha=cutmix_alpha)
-        test_loss, accuracy = test(model, test_loader, criterion, device=device)
+    for epoch in range(start_epoch, end_epoch + 1):
+        #ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        #print(f"\n[{ts}] Epoch {epoch}/{end_epoch}")
+
+        if callback is not None:
+            callback(
+                "epoch_start",
+                epoch=epoch,
+                end_epoch=end_epoch,
+                train_batches=len(train_loader),
+                test_batches=len(test_loader),
+            )
+
+        train_loss = train(model, train_loader, optimizer, criterion, device=device, cutmix_prob=cutmix_prob, cutmix_alpha=cutmix_alpha, callback=callback)
+        test_loss, accuracy = test(model, test_loader, criterion, device=device, callback=callback)
 
         step_scheduler(config["scheduler"], scheduler, test_loss)
 
@@ -143,3 +168,16 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
             cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
 
         save_training_curve(train_losses, test_losses, accuracies, name)
+
+        if callback is not None:
+            callback(
+                "epoch_end",
+                epoch=epoch,
+                train_loss=train_loss,
+                test_loss=test_loss,
+                accuracy=accuracy,
+                best_loss=best_loss,
+                best_accuracy=best_accuracy,
+            )
+    if callback is not None:
+        callback("training_end")

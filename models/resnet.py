@@ -13,21 +13,21 @@ def load_resnet(model, info):
 
 def load_resnet18(pretrained, info):
     if pretrained:
-        model = models.resnet18(weights=models.ResNet18_Weights)
+        model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     else:
         model = models.resnet18()
     return load_resnet(model, info)
 
 def load_resnet34(pretrained, info):
     if pretrained:
-        model = models.resnet34(weights=models.ResNet34_Weights)
+        model = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
     else:
         model = models.resnet34()
     return load_resnet(model, info)
 
 def load_resnet50(pretrained, info):
     if pretrained:
-        model = models.resnet50(weights=models.ResNet50_Weights)
+        model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
     else:
         model = models.resnet50()
     return load_resnet(model, info)

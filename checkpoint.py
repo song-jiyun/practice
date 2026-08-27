@@ -27,12 +27,12 @@ def save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, tr
 
     target = path(name+'_latest.pt')
     torch.save(checkpoint, target)
-    print(f'Saved checkpoint to {target}')
+    #print(f'Saved checkpoint to {target}')
 
 def save_best(model, name):
     target = path(name+'_model.pt')
     torch.save(model.state_dict(), target)
-    print(f'Saved best model to {target}')
+    #print(f'Saved best model to {target}')
 
 def load_latest(model, optimizer, scheduler, name, device='cpu'):
     target = path(name+'_latest.pt')

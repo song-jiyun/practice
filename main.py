@@ -10,6 +10,237 @@ from schedulers import get_scheduler_list, load_scheduler, get_scheduler_config
 from criterions import get_criterion_list, load_criterion
 import training as tr
 
+from tqdm import tqdm
+import datetime
+
+class CursesLine:
+    def __init__(self, stdscr, row):
+        self.stdscr = stdscr
+        self.row = row
+
+    def write(self, text):
+        text = text.replace("\r", "").replace("\n", "")
+
+        if not text:
+            return
+
+        height, width = self.stdscr.getmaxyx()
+
+        if self.row >= height:
+            return
+
+        try:
+            self.stdscr.move(self.row, 0)
+            #self.stdscr.clrtoeol()
+
+            self.stdscr.addstr(
+                self.row,
+                0,
+                text,
+                max(0, width - 1),
+            )
+
+            self.stdscr.refresh()
+
+        except curses.error:
+            pass
+
+    def flush(self):
+        pass
+    
+    def clear(self):
+        try:
+            self.stdscr.move(self.row, 0)
+            self.stdscr.clrtoeol()
+            self.stdscr.refresh()
+
+        except curses.error:
+            pass
+
+class TrainingUI:
+    def __init__(self, stdscr):
+        self.stdscr = stdscr
+
+        height, width = stdscr.getmaxyx()
+
+        self.overall_height = 4
+        self.log_height = height - self.overall_height
+
+        self.overall_win = curses.newwin(self.overall_height, width, 0, 0)
+        self.log_win = curses.newwin(self.log_height, width, self.overall_height, 0)
+
+        self.log_win.scrollok(True)
+        self.log_win.idlok(True)
+
+        self.overall_writer = CursesLine(self.overall_win, 2)
+        self.epoch_writer = None
+
+        self.overall_progress = None
+        self.epoch_progress = None        
+
+        self.epoch_row = None
+
+        self.next_row = 0
+
+        '''
+        self.log_start_row = 4
+
+        self.log_win = curses.newwin(
+            height - self.log_start_row,
+            width,
+            self.log_start_row,
+            0,
+        )
+        '''
+
+    def __call__(self, event, **data):
+        if event == "training_start":
+            self.training_start(**data)
+
+        elif event == "epoch_start":
+            self.epoch_start(**data)
+
+        elif event == "train_batch_end":
+            self.train_batch_end(**data)
+
+        elif event == "test_batch_end":
+            self.test_batch_end(**data)
+
+        elif event == "epoch_end":
+            self.epoch_end(**data)
+
+        elif event == "training_end":
+            self.training_end()
+
+    def training_start(self, start_epoch, end_epoch, train_batches, test_batches):
+        self.overall_win.erase()
+        self.log_win.erase()
+
+        self.overall_win.addstr(0, 0, "Training", curses.A_BOLD)
+
+        width = max(40, self.stdscr.getmaxyx()[1] - 1)
+
+        self.overall_progress = tqdm(
+            total=end_epoch,
+            initial=start_epoch - 1,
+            desc="Overall",
+            file=self.overall_writer,
+            leave=True,
+            position=0,
+            dynamic_ncols=False,
+            ncols=width,
+            ascii=False,
+            mininterval=0.1,
+        )
+
+        self.next_row = 0
+
+        self.overall_win.refresh()
+        self.log_win.refresh()
+
+    def ensure_log_space(self, lines=3):
+        if self.next_row + lines <= self.log_height:
+            return
+
+        scroll_lines = 3
+
+        self.log_win.scroll(scroll_lines)
+
+        self.next_row = max(0, self.next_row - scroll_lines)
+
+        self.log_win.refresh()
+
+    def epoch_start(self, epoch, end_epoch, train_batches, test_batches):
+        self.ensure_log_space(3)
+
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        width = max(40, self.log_win.getmaxyx()[1] - 1)
+
+        self.epoch_row = self.next_row
+
+        self.epoch_writer = CursesLine(self.log_win, self.epoch_row)
+
+        self.epoch_progress = tqdm(
+            total=train_batches + test_batches,
+            desc=f"[{ts}] Epoch {epoch}/{end_epoch}",
+            file=self.epoch_writer,
+            leave=True,
+            position=0,
+            dynamic_ncols=False,
+            ncols=width,
+            ascii=False,
+            mininterval=0.1,
+        )
+
+    def train_batch_end(self, batch, total_batches, loss, processed, total_samples):
+        self.epoch_progress.set_postfix_str(f"Train | Loss {loss:.4f}", refresh=False)
+        self.epoch_progress.update(1)
+
+    def test_batch_end(self, batch, total_batches, accuracy, processed, total_samples):
+        self.epoch_progress.set_postfix_str(f"Test | Acc {accuracy:.2f}", refresh=False)
+        self.epoch_progress.update(1)
+
+    def epoch_end(self, epoch, train_loss, test_loss, accuracy, best_loss, best_accuracy):
+        if self.epoch_progress is not None:
+            self.epoch_progress.close()
+            self.epoch_progress = None
+
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        width = max(40, self.log_win.getmaxyx()[1] - 1)
+
+        result = f"[{ts}] Train Loss {train_loss:.4f} | Test Loss {test_loss:.4f} | Accuracy {accuracy:.2f}%"
+
+        try:
+            self.log_win.addnstr(self.epoch_row + 1, 0, result, width - 1)
+        except curses.error:
+            pass
+
+        self.overall_progress.set_postfix_str(f"Acc {accuracy:.2f}% | Loss {test_loss:.4f}", refresh=False)
+        self.overall_progress.update(1)
+
+        # progress bar 바로 다음 줄로 이동
+        self.next_row = self.epoch_row + 3
+
+        self.log_win.refresh()
+        self.overall_win.refresh()
+
+    def training_end(self):
+        if self.epoch_progress is not None:
+            self.epoch_progress.close()
+            self.epoch_progress = None
+
+        if self.overall_progress is not None:
+            self.overall_progress.close()
+
+        self.ensure_log_space(2)
+
+        width = max(40, self.log_win.getmaxyx()[1] - 1)
+
+        try:
+            self.log_win.addstr(self.next_row, 0, "Training completed.", curses.A_BOLD)
+            self.log_win.addstr(self.next_row + 1, 0, "Press any key to return.", width - 1)
+        except curses.error:
+            pass
+
+        self.log_win.refresh()
+        self.overall_win.refresh()
+
+    def next_log_line(self, lines=1):
+        height, _ = self.log_win.getmaxyx()
+
+        row, _ = self.log_win.getyx()
+
+        for _ in range(lines):
+            if row >= height - 1:
+                self.log_win.scroll(1)
+                row = height - 1
+            else:
+                row += 1
+
+        self.log_win.move(row, 0)   
+
 config = {
     "dataset": {
         "dataset": get_dataset_list()[0],
@@ -444,24 +675,27 @@ def set_seed(seed):
     torch.use_deterministic_algorithms(True)
 
 def start(stdscr):
-    set_seed(config["training"]["seed"])
+    try:
+        set_seed(config["training"]["seed"])
 
-    train_loader, test_loader, info = load_dataset(config["dataset"])
-    
-    model = load_model(config["model"], info)
-    if model is None:
-        msg = f'{config["dataset"]["dataset"]}에서는 {config["model"]["model"]}을 사용할 수 없습니다.'
-        attr = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
-        stdscr.addstr(4, 4, msg, curses.A_REVERSE)
+        train_loader, test_loader, info = load_dataset(config["dataset"])
+        
+        model = load_model(config["model"], info)
+        if model is None:
+            msg = f'{config["dataset"]["dataset"]}에서는 {config["model"]["model"]}을 사용할 수 없습니다.'
+            attr = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
+            stdscr.addstr(4, 4, msg, curses.A_REVERSE)
+            return
+
+        optimizer = load_optimizer(config["optimizer"], model)
+        scheduler = load_scheduler(config["scheduler"], optimizer, config["training"]["epoch"])
+        criterion = load_criterion(config["criterion"], info)
+
+        ui = TrainingUI(stdscr)
+      
+        tr.training(config, model, train_loader, test_loader, optimizer, scheduler, criterion, callback=ui)
+    except KeyboardInterrupt:
         return
-
-    optimizer = load_optimizer(config["optimizer"], model)
-    scheduler = load_scheduler(config["scheduler"], optimizer, config["training"]["epoch"])
-    criterion = load_criterion(config["criterion"], info)
-
-    curses.endwin()
-    
-    tr.training(config, model, train_loader, test_loader, optimizer, scheduler, criterion)
 
 if __name__ == "__main__":
     curses.wrapper(main)
