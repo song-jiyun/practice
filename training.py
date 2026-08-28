@@ -1,7 +1,5 @@
 import numpy as np
-import datetime
 import torch
-from tqdm import tqdm
 
 import checkpoint as cp
 from plot_utils import save_training_curve
@@ -104,8 +102,6 @@ def test(model, test_loader, criterion, device='cpu', callback=None):
     
     test_loss /= len(test_loader.dataset)
     accuracy = 100. * correct / len(test_loader.dataset)
-    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    #print(f'[{ts}] Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} ({accuracy:.2f}%)')
     return test_loss, accuracy
 
 def training(config, model, train_loader, test_loader, optimizer, scheduler, criterion, callback=None):
@@ -134,8 +130,6 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
         )
 
     for epoch in range(start_epoch, end_epoch + 1):
-        #ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        #print(f"\n[{ts}] Epoch {epoch}/{end_epoch}")
 
         if callback is not None:
             callback(

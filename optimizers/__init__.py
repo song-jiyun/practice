@@ -1,5 +1,3 @@
-import torch
-
 from .sgd import load_sgd
 from .adam import load_adam, load_adamw
 

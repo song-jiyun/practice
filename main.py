@@ -31,9 +31,8 @@ class CursesLine:
 
         try:
             self.stdscr.move(self.row, 0)
-            #self.stdscr.clrtoeol()
 
-            self.stdscr.addstr(
+            self.stdscr.addnstr(
                 self.row,
                 0,
                 text,
@@ -81,17 +80,6 @@ class TrainingUI:
         self.epoch_row = None
 
         self.next_row = 0
-
-        '''
-        self.log_start_row = 4
-
-        self.log_win = curses.newwin(
-            height - self.log_start_row,
-            width,
-            self.log_start_row,
-            0,
-        )
-        '''
 
     def __call__(self, event, **data):
         if event == "training_start":
@@ -226,20 +214,6 @@ class TrainingUI:
 
         self.log_win.refresh()
         self.overall_win.refresh()
-
-    def next_log_line(self, lines=1):
-        height, _ = self.log_win.getmaxyx()
-
-        row, _ = self.log_win.getyx()
-
-        for _ in range(lines):
-            if row >= height - 1:
-                self.log_win.scroll(1)
-                row = height - 1
-            else:
-                row += 1
-
-        self.log_win.move(row, 0)   
 
 config = {
     "dataset": {

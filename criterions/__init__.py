@@ -1,5 +1,3 @@
-import torch.nn as nn
-
 from .mse import load_mseloss
 from .ce import load_celoss
 

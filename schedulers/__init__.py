@@ -1,5 +1,3 @@
-import torch
-
 from .step import load_steplr
 from .cosine import load_cosinelr
 from .plateau import load_plateaulr
