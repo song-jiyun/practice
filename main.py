@@ -1,20 +1,20 @@
-import torch
 import curses
+import datetime
 import random
 import sys
 import termios
-import numpy as np
 
+import numpy as np
+import torch
+from tqdm import tqdm
+
+import benchmark as bm
+import training as tr
+from criterions import get_criterion_list, load_criterion
 from datasets import get_dataset_list, load_dataset
 from models import get_model_list, load_model
 from optimizers import get_optimizer_list, load_optimizer
 from schedulers import get_scheduler_list, load_scheduler, get_scheduler_config
-from criterions import get_criterion_list, load_criterion
-import training as tr
-import benchmark as bm
-
-from tqdm import tqdm
-import datetime
 
 class CursesLine:
     def __init__(self, stdscr, row):
@@ -49,7 +49,7 @@ class CursesLine:
 
     def flush(self):
         pass
-    
+
     def clear(self):
         try:
             self.stdscr.move(self.row, 0)
@@ -78,7 +78,7 @@ class TrainingUI:
         self.epoch_writer = None
 
         self.overall_progress = None
-        self.epoch_progress = None        
+        self.epoch_progress = None
 
         self.epoch_row = None
 
@@ -172,7 +172,16 @@ class TrainingUI:
         self.epoch_progress.set_postfix_str(f"Test | Acc {accuracy:.2f}", refresh=False)
         self.epoch_progress.update(1)
 
-    def epoch_end(self, epoch, train_loss, test_loss, accuracy, best_loss, best_accuracy):
+    def epoch_end(
+        self,
+        epoch,
+        train_loss,
+        test_loss,
+        accuracy,
+        best_loss,
+        best_accuracy,
+        is_initial=False,
+    ):
         if self.epoch_progress is not None:
             self.epoch_progress.close()
             self.epoch_progress = None
@@ -181,17 +190,30 @@ class TrainingUI:
 
         width = max(40, self.log_win.getmaxyx()[1] - 1)
 
-        result = f"[{ts}] Train Loss {train_loss:.4f} | Test Loss {test_loss:.4f} | Accuracy {accuracy:.2f}%"
+        if is_initial:
+            result = (
+                f"[{ts}] Initial Test Loss {test_loss:.4f} | "
+                f"Accuracy {accuracy:.2f}%"
+            )
+        else:
+            result = (
+                f"[{ts}] Train Loss {train_loss:.4f} | "
+                f"Test Loss {test_loss:.4f} | Accuracy {accuracy:.2f}%"
+            )
 
         try:
             self.log_win.addnstr(self.epoch_row + 1, 0, result, width - 1)
         except curses.error:
             pass
 
-        self.overall_progress.set_postfix_str(f"Acc {accuracy:.2f}% | Loss {test_loss:.4f}", refresh=False)
-        self.overall_progress.update(1)
+        if not is_initial:
+            self.overall_progress.set_postfix_str(
+                f"Acc {accuracy:.2f}% | Loss {test_loss:.4f}",
+                refresh=False,
+            )
+            self.overall_progress.update(1)
 
-        # progress bar 바로 다음 줄로 이동
+        # Move to the line immediately following the progress bar.
         self.next_row = self.epoch_row + 3
 
         self.log_win.refresh()
@@ -474,7 +496,9 @@ config = {
     "model": {
         "model": get_model_list()[0],
         "pretrained": True,
-        "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        "device": (
+            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        ),
     },
 
     "optimizer": {
@@ -490,7 +514,7 @@ config = {
         "criterion": get_criterion_list()[0],
     },
 
-    "cutmix": {    
+    "cutmix": {
         "prob": 0.5,
         "alpha": 1.0,
     },
@@ -498,8 +522,9 @@ config = {
     "training": {
         "epoch": 300,
         "seed": 42,
-    }
+    },
 }
+
 
 def draw_menu(stdscr, title, options, selected):
     stdscr.clear()
@@ -519,16 +544,17 @@ def draw_menu(stdscr, title, options, selected):
 
     row = 0
     stdscr.addstr(row, right_x, "현재 설정", curses.A_BOLD)
-    
+
     for key, value in config.items():
         row += 2
         if row < height - 1:
             stdscr.addstr(row, right_x, f"{key}")
-            for key1, value1 in value.items():
+            for nested_key, nested_value in value.items():
                 row += 1
-                stdscr.addstr(row, right_x + 4, f"{key1}: {value1}")
-            
+                stdscr.addstr(row, right_x + 4, f"{nested_key}: {nested_value}")
+
     stdscr.refresh()
+
 
 def input_float(stdscr, menu, selected):
     while True:
@@ -545,6 +571,7 @@ def input_float(stdscr, menu, selected):
         except ValueError:
             stdscr.addstr(y, x + 3, "숫자를 입력해주세요.")
             stdscr.getch()
+
 
 def input_text(stdscr, prompt, default=""):
     stdscr.clear()
@@ -564,10 +591,7 @@ def input_text(stdscr, prompt, default=""):
 
 def parse_batch_sizes(value):
     try:
-        batch_sizes = sorted({
-            int(item.strip())
-            for item in value.split(",")
-        })
+        batch_sizes = sorted({int(item.strip()) for item in value.split(",")})
     except ValueError as exc:
         raise ValueError(
             "batch size는 쉼표로 구분한 정수여야 합니다. 예: 64,96,128"
@@ -587,9 +611,9 @@ def main(stdscr):
             curses.use_default_colors()
         except Exception:
             pass
-        # pair 1: green text on default background
+        # Pair 1: green text on the default background.
         curses.init_pair(1, -1, curses.COLOR_GREEN)
-    
+
     stdscr.nodelay(False)
     selected = 0
     while True:
@@ -601,88 +625,74 @@ def main(stdscr):
         ]
         draw_menu(stdscr, "머신러닝 실습", menu, selected)
         key = stdscr.getch()
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected == 0:
-                #학습 설정
                 configure(stdscr)
             elif selected == 1:
-                #학습 시작
                 start(stdscr)
                 stdscr.getch()
             elif selected == 2:
-                # 벤치마크 시작
                 benchmark_menu(stdscr)
             elif selected == 3:
-                #나가기
                 return
+
 
 def configure(stdscr):
     selected = 0
     while True:
-        menu = [
-            f"{key} 설정" for key, value in config.items()
-        ]
+        menu = [f"{key} 설정" for key in config]
         menu.append("뒤로가기")
         draw_menu(stdscr, "학습 설정", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected == 0:
-                #dataset
                 configure_dataset(stdscr)
             elif selected == 1:
-                #model
                 configure_model(stdscr)
             elif selected == 2:
-                #optimizer
                 configure_optimizer(stdscr)
             elif selected == 3:
-                #scheduler
                 configure_scheduler(stdscr)
             elif selected == 4:
-                #criterion
                 configure_criterion(stdscr)
             elif selected == 5:
-                #cutmix
                 configure_cutmix(stdscr)
             elif selected == 6:
-                #training
                 configure_training(stdscr)
             else:
-                # 뒤로가기
                 break
 
-def configure_dataset(stdscr):    
+
+def configure_dataset(stdscr):
     selected = 0
     while True:
-        menu = [
-            f"{key} 변경" for key, value in config['dataset'].items()
-        ]
+        menu = [f"{key} 변경" for key in config["dataset"]]
         menu.append("뒤로가기")
 
         draw_menu(stdscr, "dataset 설정", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected == 0:
-                #dataset 변경
                 change_dataset(stdscr)
             elif selected in range(1, len(menu) - 1):
-                config['dataset'][list(config['dataset'].keys())[selected]] = int(input_float(stdscr, menu, selected))
+                config["dataset"][list(config["dataset"].keys())[selected]] = int(
+                    input_float(stdscr, menu, selected)
+                )
             else:
-                #뒤로가기
                 break
 
 def change_dataset(stdscr):
@@ -693,49 +703,48 @@ def change_dataset(stdscr):
         draw_menu(stdscr, "dataset 변경", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected in range(0, len(menu) - 1):
-                config['dataset']['dataset'] = menu[selected]
+                config["dataset"]["dataset"] = menu[selected]
             else:
                 break
 
 def configure_model(stdscr):
     selected = 0
     while True:
-        menu = [
-            f"{key} 변경" for key, value in config['model'].items()
-        ]
+        menu = [f"{key} 변경" for key in config["model"]]
         menu.append("뒤로가기")
         draw_menu(stdscr, "model 설정", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected == 0:
-                #model 변경
                 change_model(stdscr)
             elif selected == 1:
-                #pretrained
                 if config["model"]["pretrained"] == True:
                     config["model"]["pretrained"] = False
                 else:
                     config["model"]["pretrained"] = True
             elif selected == 2:
-                #device
                 if config["model"]["device"] == torch.device("cuda"):
                     config["model"]["device"] = torch.device("cpu")
                 else:
-                    config["model"]["device"] = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+                    config["model"]["device"] = (
+                        torch.device("cuda")
+                        if torch.cuda.is_available()
+                        else torch.device("cpu")
+                    )
             else:
-                #뒤로가기
                 break
+
 
 def change_model(stdscr):
     selected = 0
@@ -745,39 +754,38 @@ def change_model(stdscr):
         draw_menu(stdscr, "model 변경", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected in range(0, len(menu) - 1):
-                config['model']['model'] = menu[selected]
+                config["model"]["model"] = menu[selected]
             else:
                 break
 
 def configure_optimizer(stdscr):
     selected = 0
     while True:
-        menu = [
-            f"{key} 변경" for key, value in config['optimizer'].items()
-        ]
+        menu = [f"{key} 변경" for key in config["optimizer"]]
         menu.append("뒤로가기")
         draw_menu(stdscr, "optimizer 설정", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected == 0:
-                #optimizer 변경
                 change_optimizer(stdscr)
             elif selected in range(1, len(menu) - 1):
-                config['optimizer'][list(config['optimizer'].keys())[selected]] = input_float(stdscr, menu, selected)
+                config["optimizer"][list(config["optimizer"].keys())[selected]] = (
+                    input_float(stdscr, menu, selected)
+                )
             else:
-                #뒤로가기
                 break
+
 
 def change_optimizer(stdscr):
     selected = 0
@@ -787,39 +795,39 @@ def change_optimizer(stdscr):
         draw_menu(stdscr, "optimizer 변경", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected in range(0, len(menu) - 1):
-                config['optimizer']['optimizer'] = menu[selected]
+                config["optimizer"]["optimizer"] = menu[selected]
             else:
                 break
+
 
 def configure_scheduler(stdscr):
     selected = 0
     while True:
-        menu = [
-            f"{key} 변경" for key, value in config['scheduler'].items()
-        ]
+        menu = [f"{key} 변경" for key in config["scheduler"]]
         menu.append("뒤로가기")
         draw_menu(stdscr, "scheduler 설정", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected == 0:
-                #scheduler 변경
                 change_scheduler(stdscr)
             elif selected in range(1, len(menu) - 1):
-                config['scheduler'][list(config['scheduler'].keys())[selected]] = input_float(stdscr, menu, selected)
+                config["scheduler"][list(config["scheduler"].keys())[selected]] = (
+                    input_float(stdscr, menu, selected)
+                )
             else:
-                #뒤로가기
                 break
+
 
 def change_scheduler(stdscr):
     selected = 0
@@ -829,37 +837,34 @@ def change_scheduler(stdscr):
         draw_menu(stdscr, "scheduler 변경", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected in range(0, len(menu) - 1):
-                config['scheduler'] = get_scheduler_config(menu[selected])
+                config["scheduler"] = get_scheduler_config(menu[selected])
             else:
                 break
 
 def configure_criterion(stdscr):
     selected = 0
     while True:
-        menu = [
-            f"{key} 변경" for key, value in config['criterion'].items()
-        ]
+        menu = [f"{key} 변경" for key in config["criterion"]]
         menu.append("뒤로가기")
         draw_menu(stdscr, "criterion 설정", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected == 0:
-                #criterion 변경
                 change_criterion(stdscr)
             elif selected == 1:
-                #뒤로가기
                 break
+
 
 def change_criterion(stdscr):
     selected = 0
@@ -869,69 +874,69 @@ def change_criterion(stdscr):
         draw_menu(stdscr, "criterion 변경", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected in range(0, len(menu) - 1):
-                config['criterion']['criterion'] = menu[selected]
+                config["criterion"]["criterion"] = menu[selected]
             else:
                 break
 
 def configure_cutmix(stdscr):
     selected = 0
     while True:
-        menu = [
-            f"{key} 변경" for key, value in config['cutmix'].items()
-        ]
+        menu = [f"{key} 변경" for key in config["cutmix"]]
         menu.append("뒤로가기")
         draw_menu(stdscr, "cutmix 설정", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected in range(0, len(menu) - 1):
-                #cutmix 변경
-                config['cutmix'][list(config['cutmix'].keys())[selected]] = input_float(stdscr, menu, selected)
+                config["cutmix"][list(config["cutmix"].keys())[selected]] = (
+                    input_float(stdscr, menu, selected)
+                )
             else:
-                #뒤로가기
                 break
+
 
 def configure_training(stdscr):
     selected = 0
     while True:
-        menu = [
-            f"{key} 변경" for key, value in config['training'].items()
-        ]
+        menu = [f"{key} 변경" for key in config["training"]]
         menu.append("뒤로가기")
         draw_menu(stdscr, "training 설정", menu, selected)
         key = stdscr.getch()
 
-        if key in (curses.KEY_UP, ord('k')):
+        if key in (curses.KEY_UP, ord("k")):
             selected = (selected - 1) % len(menu)
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key in (curses.KEY_DOWN, ord("j")):
             selected = (selected + 1) % len(menu)
-        elif key in (10, 13, ord(' ')):
+        elif key in (10, 13, ord(" ")):
             if selected in range(0, len(menu) - 1):
-                #training 변경
-                config['training'][list(config['training'].keys())[selected]] = int(input_float(stdscr, menu, selected))
+                config["training"][list(config["training"].keys())[selected]] = int(
+                    input_float(stdscr, menu, selected)
+                )
             else:
-                #뒤로가기
                 break
 
+
 def get_default_batch_sizes(batch_size):
-    return sorted({
-        max(1, batch_size // 2),
-        max(1, batch_size * 3 // 4),
-        batch_size,
-        batch_size * 5 // 4,
-        batch_size * 3 // 2,
-        batch_size * 2,
-    })
+    return sorted(
+        {
+            max(1, batch_size // 2),
+            max(1, batch_size * 3 // 4),
+            batch_size,
+            batch_size * 5 // 4,
+            batch_size * 3 // 2,
+            batch_size * 2,
+        }
+    )
 
 
 def draw_benchmark_menu(stdscr, settings, selected):
@@ -1024,10 +1029,7 @@ def benchmark_menu(stdscr):
             selected = (selected + 1) % menu_size
         elif key in (10, 13, ord(" ")):
             if selected == 0:
-                default = ",".join(
-                    str(value)
-                    for value in settings["batch_sizes"]
-                )
+                default = ",".join(str(value) for value in settings["batch_sizes"])
                 raw_value = input_text(
                     stdscr,
                     "측정할 batch size를 쉼표로 구분해 입력하세요.",
@@ -1069,6 +1071,7 @@ def benchmark_menu(stdscr):
             else:
                 return
 
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -1099,26 +1102,115 @@ def show_runtime_error(stdscr, exc):
         pass
 
 
+def draw_startup_status(stdscr, row, message):
+    """Render one startup-status line immediately."""
+    height, width = stdscr.getmaxyx()
+
+    if row >= height:
+        return
+
+    try:
+        stdscr.addnstr(row, 0, message, max(0, width - 1))
+        stdscr.refresh()
+    except curses.error:
+        pass
+
+
+def run_startup_step(stdscr, row, message, action, show_complete=True):
+    draw_startup_status(stdscr, row, f"{message}...")
+    result = action()
+    if show_complete:
+        draw_startup_status(stdscr, row, f"{message} 완료")
+    return result
+
+
 def start(stdscr):
     try:
-        set_seed(config["training"]["seed"])
+        row = 0
+        stdscr.clear()
+        stdscr.addstr(row, 0, "학습 준비중...", curses.A_BOLD)
+        stdscr.refresh()
 
-        train_loader, test_loader, info = load_dataset(config["dataset"])
-        
-        model = load_model(config["model"], info)
+        row += 2
+        run_startup_step(
+            stdscr,
+            row,
+            "시드 초기화",
+            lambda: set_seed(config["training"]["seed"]),
+        )
+
+        row += 1
+        train_loader, test_loader, info = run_startup_step(
+            stdscr,
+            row,
+            "데이터셋 로딩",
+            lambda: load_dataset(config["dataset"]),
+        )
+
+        row += 1
+        model = run_startup_step(
+            stdscr,
+            row,
+            "모델 로딩",
+            lambda: load_model(config["model"], info),
+            show_complete=False,
+        )
         if model is None:
-            msg = f'{config["dataset"]["dataset"]}에서는 {config["model"]["model"]}을 사용할 수 없습니다.'
-            attr = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
-            stdscr.addstr(4, 4, msg, curses.A_REVERSE)
+            row += 1
+            msg = (
+                f'{config["dataset"]["dataset"]}에서는 '
+                f'{config["model"]["model"]}을 사용할 수 없습니다.'
+            )
+            attr = (
+                curses.color_pair(1) | curses.A_BOLD
+                if curses.has_colors()
+                else curses.A_BOLD
+            )
+            stdscr.addstr(row, 0, msg, curses.A_REVERSE)
+            stdscr.refresh()
             return
+        draw_startup_status(stdscr, row, "모델 로딩 완료")
 
-        optimizer = load_optimizer(config["optimizer"], model)
-        scheduler = load_scheduler(config["scheduler"], optimizer, config["training"]["epoch"])
-        criterion = load_criterion(config["criterion"], info)
+        row += 1
+        optimizer = run_startup_step(
+            stdscr,
+            row,
+            "옵티마이저 로딩",
+            lambda: load_optimizer(config["optimizer"], model),
+        )
+
+        row += 1
+        scheduler = run_startup_step(
+            stdscr,
+            row,
+            "스케줄러 로딩",
+            lambda: load_scheduler(
+                config["scheduler"], optimizer, config["training"]["epoch"]
+            ),
+        )
+
+        row += 1
+        criterion = run_startup_step(
+            stdscr,
+            row,
+            "손실함수 로딩",
+            lambda: load_criterion(config["criterion"], info),
+        )
 
         ui = TrainingUI(stdscr)
-      
-        tr.training(config, model, train_loader, test_loader, optimizer, scheduler, criterion, callback=ui)
+
+        row += 1
+        draw_startup_status(stdscr, row, "학습 시작...")
+        tr.training(
+            config,
+            model,
+            train_loader,
+            test_loader,
+            optimizer,
+            scheduler,
+            criterion,
+            callback=ui,
+        )
     except KeyboardInterrupt:
         return
     except Exception as exc:
@@ -1178,6 +1270,7 @@ def run():
                 )
             except (termios.error, OSError):
                 pass
+
 
 if __name__ == "__main__":
     run()

@@ -17,16 +17,15 @@ model_list = {
 def get_model_list():
     return list(model_list.keys())
 
+
 def load_model(config, info):
     name = config["model"]
     pretrained = config["pretrained"]
     device = config["device"]
 
     model = model_list[name](pretrained, info)
-    
+
     if model is None:
         return None
-    else:
-        model = model.to(device)
 
-    return model
+    return model.to(device)

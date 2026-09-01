@@ -12,7 +12,6 @@ scheduler_list = {
         },
         "type": "epoch",
     },
-
     "CosineAnnealingLR": {
         "loader": load_cosinelr,
         "config": {
@@ -21,7 +20,6 @@ scheduler_list = {
         },
         "type": "epoch",
     },
-
     "ReduceLROnPlateau": {
         "loader": load_plateaulr,
         "config": {
@@ -37,15 +35,18 @@ scheduler_list = {
 def get_scheduler_list():
     return list(scheduler_list.keys())
 
+
 def get_scheduler_config(name):
-    return scheduler_list[name]['config']
+    return scheduler_list[name]["config"]
+
 
 def load_scheduler(config, optimizer, epoch):
     name = config["scheduler"]
 
-    scheduler = scheduler_list[name]['loader'](config, optimizer, epoch)
+    scheduler = scheduler_list[name]["loader"](config, optimizer, epoch)
 
     return scheduler
+
 
 def step_scheduler(config, scheduler, metric):
     name = config["scheduler"]

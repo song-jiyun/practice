@@ -1,57 +1,104 @@
 import torch.nn as nn
 
-class ResidualBlock(nn.Module) :
+
+class ResidualBlock(nn.Module):
     constant = 1
-    def __init__(self, in_channels, out_channels, stride=1) :
-        
+
+    def __init__(self, in_channels, out_channels, stride=1):
         super().__init__()
         self.relu = nn.ReLU()
 
         self.residual_block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False),
+            nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size=3,
+                stride=stride,
+                padding=1,
+                bias=False,
+            ),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels)
+            nn.Conv2d(
+                out_channels,
+                out_channels,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=False,
+            ),
+            nn.BatchNorm2d(out_channels),
         )
 
         self.shortcut = nn.Sequential()
-        if stride != 1 or in_channels != out_channels :
+        if stride != 1 or in_channels != out_channels:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, padding=0, bias=False),
-                nn.BatchNorm2d(out_channels)
+                nn.Conv2d(
+                    in_channels,
+                    out_channels,
+                    kernel_size=1,
+                    stride=stride,
+                    padding=0,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(out_channels),
             )
 
-    def forward(self, x) :
+    def forward(self, x):
         return self.relu(self.residual_block(x) + self.shortcut(x))
 
-class BottleneckBlock(nn.Module) :
+
+class BottleneckBlock(nn.Module):
     constant = 4
-    def __init__(self, in_channels, out_channels, stride=1) :
-        
+
+    def __init__(self, in_channels, out_channels, stride=1):
         super().__init__()
         self.relu = nn.ReLU()
 
         self.bottleneck_block = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(
+                in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False
+            ),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False),
+            nn.Conv2d(
+                out_channels,
+                out_channels,
+                kernel_size=3,
+                stride=stride,
+                padding=1,
+                bias=False,
+            ),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
-            nn.Conv2d(out_channels, self.constant*out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(self.constant*out_channels),
+            nn.Conv2d(
+                out_channels,
+                self.constant * out_channels,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                bias=False,
+            ),
+            nn.BatchNorm2d(self.constant * out_channels),
         )
 
         self.shortcut = nn.Sequential()
-        if stride != 1 or in_channels != self.constant*out_channels :
+        if stride != 1 or in_channels != self.constant * out_channels:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, self.constant*out_channels, kernel_size=1, stride=stride, padding=0, bias=False),
-                nn.BatchNorm2d(self.constant*out_channels)
+                nn.Conv2d(
+                    in_channels,
+                    self.constant * out_channels,
+                    kernel_size=1,
+                    stride=stride,
+                    padding=0,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(self.constant * out_channels),
             )
 
-    def forward(self, x) :
+    def forward(self, x):
         return self.relu(self.bottleneck_block(x) + self.shortcut(x))
+
 
 class CustomNet(nn.Module):
     def __init__(self, block, layers, info):
@@ -61,9 +108,16 @@ class CustomNet(nn.Module):
         self.in_channels = 64
 
         self.stem = nn.Sequential(
-            nn.Conv2d(input_channels, self.in_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(
+                input_channels,
+                self.in_channels,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+                bias=False,
+            ),
             nn.BatchNorm2d(self.in_channels),
-            nn.ReLU()
+            nn.ReLU(),
         )
 
         self.conv2 = self._make_layer(block, 64, layers[0], stride=1)
@@ -76,7 +130,7 @@ class CustomNet(nn.Module):
 
         self.feature_head = nn.Sequential(
             nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Flatten()
+            nn.Flatten(),
         )
         self.fc = nn.Linear(4096 * block.constant, num_classes)
 
@@ -112,9 +166,11 @@ class CustomNet(nn.Module):
         x = self.conv8(x)
         x = self.feature_head(x)
         return x
-    
+
+
 def customnet(info):
     return CustomNet(ResidualBlock, [2, 2, 2, 2, 2, 2, 2], info)
+
 
 def load_customnet(pretrained, info):
     model = customnet(info)

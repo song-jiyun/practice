@@ -3,8 +3,9 @@ import torch
 default_config = {
     "lr": 0.1,
     "momentum": 0.9,
-    "weight_decay": 5e-4
+    "weight_decay": 5e-4,
 }
+
 
 def load_sgd(config, model):
     default_config["lr"] = config["lr"]

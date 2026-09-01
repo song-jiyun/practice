@@ -10,6 +10,7 @@ optimizer_list = {
 def get_optimizer_list():
     return list(optimizer_list.keys())
 
+
 def load_optimizer(config, model):
     name = config["optimizer"]
     optimizer = optimizer_list[name](config, model)

@@ -1,18 +1,28 @@
 from torchvision import models
 import torch.nn as nn
 
+
 def load_resnet(model, info):
     num_classes = info["num_classes"]
     in_channels = info["in_channels"]
-    image_size = info["image_size"]
-
     if in_channels != 3:
-        model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        model.conv1 = nn.Conv2d(
+            in_channels,
+            64,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False,
+        )
 
-    if getattr(model, "fc", None) is None or getattr(model.fc, "out_features", None) != num_classes:
+    if (
+        getattr(model, "fc", None) is None
+        or getattr(model.fc, "out_features", None) != num_classes
+    ):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
 
     return model
+
 
 def load_resnet18(pretrained, info):
     if pretrained:
@@ -21,12 +31,14 @@ def load_resnet18(pretrained, info):
         model = models.resnet18()
     return load_resnet(model, info)
 
+
 def load_resnet34(pretrained, info):
     if pretrained:
         model = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
     else:
         model = models.resnet34()
     return load_resnet(model, info)
+
 
 def load_resnet50(pretrained, info):
     if pretrained:

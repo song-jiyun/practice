@@ -8,6 +8,7 @@ default_config = {
     "weight_decay": 5e-4,
 }
 
+
 def load_adam(config, model):
     default_config["lr"] = config["lr"]
     default_config["beta1"] = config["momentum"]
@@ -22,6 +23,7 @@ def load_adam(config, model):
     )
 
     return optimizer
+
 
 def load_adamw(config, model):
     default_config["lr"] = config["lr"]

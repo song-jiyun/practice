@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 
+
 def save_training_curve(train_loss, test_loss, accuracy, name):
-    output_path = f'./training_curve/{name}.png'
+    output_path = f"./training_curve/{name}.png"
     plt.figure(figsize=(10, 4))
 
     # The first point is the evaluation before any optimizer update.
@@ -9,7 +10,7 @@ def save_training_curve(train_loss, test_loss, accuracy, name):
 
     plt.subplot(1, 2, 1)
     plt.plot(epochs, test_loss, label="Test Loss", color="tab:blue")
-    # plot training loss on the same axes if provided
+    # Plot training loss on the same axes if provided.
     if train_loss is not None:
         plt.plot(epochs, train_loss, label="Train Loss", color="tab:green", linestyle="--")
 
@@ -21,7 +22,7 @@ def save_training_curve(train_loss, test_loss, accuracy, name):
         (min_loss_epoch, min_loss),
         textcoords="offset points",
         xytext=(8, 8),
-        ha="left"
+        ha="left",
     )
     plt.xlabel("Epoch")
     plt.ylabel("Loss")

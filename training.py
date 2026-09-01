@@ -5,47 +5,60 @@ import checkpoint as cp
 from plot_utils import save_training_curve
 from schedulers import step_scheduler
 
+
 def rand_bbox(size, lam):
-    # size is (N, C, H, W)
-    H = size[2]
-    W = size[3]
+    """Return CutMix bounding-box coordinates for an ``(N, C, H, W)`` tensor."""
+    height = size[2]
+    width = size[3]
     cut_rat = np.sqrt(1. - lam)
-    cut_w = int(W * cut_rat)
-    cut_h = int(H * cut_rat)
+    cut_width = int(width * cut_rat)
+    cut_height = int(height * cut_rat)
 
-    cx = np.random.randint(W)
-    cy = np.random.randint(H)
+    center_x = np.random.randint(width)
+    center_y = np.random.randint(height)
 
-    # bbx = height (y), bby = width (x) for slicing x[:, :, bbx1:bbx2, bby1:bby2]
-    bbx1 = np.clip(cy - cut_h // 2, 0, H)
-    bby1 = np.clip(cx - cut_w // 2, 0, W)
-    bbx2 = np.clip(cy + cut_h // 2, 0, H)
-    bby2 = np.clip(cx + cut_w // 2, 0, W)
-    return bbx1, bby1, bbx2, bby2
+    # Slicing order is x[:, :, top:bottom, left:right].
+    top = np.clip(center_y - cut_height // 2, 0, height)
+    left = np.clip(center_x - cut_width // 2, 0, width)
+    bottom = np.clip(center_y + cut_height // 2, 0, height)
+    right = np.clip(center_x + cut_width // 2, 0, width)
+    return top, left, bottom, right
+
 
 def cutmix_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+
 
 def cutmix_data(x, y, alpha=1.0):
     if alpha <= 0:
         return x, y, y, 1.0
     lam = np.random.beta(alpha, alpha)
-    batch_size = x.size()[0]
+    batch_size = x.size(0)
     index = torch.randperm(batch_size).to(x.device)
     y_a = y
     y_b = y[index]
-    bbx1, bby1, bbx2, bby2 = rand_bbox(x.size(), lam)
-    x[:, :, bbx1:bbx2, bby1:bby2] = x[index, :, bbx1:bbx2, bby1:bby2]
-    lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (x.size()[-1] * x.size()[-2]))
+    top, left, bottom, right = rand_bbox(x.size(), lam)
+    x[:, :, top:bottom, left:right] = x[index, :, top:bottom, left:right]
+    lam = 1 - ((bottom - top) * (right - left) / (x.size(-1) * x.size(-2)))
     return x, y_a, y_b, lam
 
-def train(model, train_loader, optimizer, criterion, device='cpu', cutmix_prob=0.0, cutmix_alpha=1.0, callback=None):
+
+def train(
+    model,
+    train_loader,
+    optimizer,
+    criterion,
+    device="cpu",
+    cutmix_prob=0.0,
+    cutmix_alpha=1.0,
+    callback=None,
+):
     model.train()
     total_samples = len(train_loader.dataset)
     processed = 0
     running_loss = 0.0
 
-    for batch_idx, (image, label) in enumerate(train_loader):
+    for batch_index, (image, label) in enumerate(train_loader):
         image, label = image.to(device), label.to(device)
         optimizer.zero_grad()
 
@@ -65,7 +78,7 @@ def train(model, train_loader, optimizer, criterion, device='cpu', cutmix_prob=0
         if callback is not None:
             callback(
                 "train_batch_end",
-                batch=batch_idx + 1,
+                batch=batch_index + 1,
                 total_batches=len(train_loader),
                 loss=loss.item(),
                 processed=processed,
@@ -75,14 +88,15 @@ def train(model, train_loader, optimizer, criterion, device='cpu', cutmix_prob=0
     avg_loss = running_loss / total_samples if total_samples > 0 else 0.0
     return avg_loss
 
-def test(model, test_loader, criterion, device='cpu', callback=None):
+
+def test(model, test_loader, criterion, device="cpu", callback=None):
     model.eval()
     test_loss = 0
     correct = 0
     processed = 0
 
     with torch.no_grad():
-        for batch_idx, (image, label) in enumerate(test_loader):
+        for batch_index, (image, label) in enumerate(test_loader):
             image, label = image.to(device), label.to(device)
             output = model(image)
             test_loss += criterion(output, label).item() * image.size(0)
@@ -93,16 +107,17 @@ def test(model, test_loader, criterion, device='cpu', callback=None):
             if callback is not None:
                 callback(
                     "test_batch_end",
-                    batch=batch_idx + 1,
+                    batch=batch_index + 1,
                     total_batches=len(test_loader),
                     accuracy=100.0 * correct / processed,
                     processed=processed,
                     total_samples=len(test_loader.dataset),
                 )
-    
+
     test_loss /= len(test_loader.dataset)
-    accuracy = 100. * correct / len(test_loader.dataset)
+    accuracy = 100.0 * correct / len(test_loader.dataset)
     return test_loss, accuracy
+
 
 def training(config, model, train_loader, test_loader, optimizer, scheduler, criterion, callback=None):
     end_epoch = config["training"]["epoch"]
@@ -122,14 +137,39 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
         f"{config['scheduler']['scheduler']}+{config['criterion']['criterion']}"
     )
 
-    start_epoch, best_loss, best_accuracy, train_losses, test_losses, accuracies = cp.load_latest(model, optimizer, scheduler, name, device=device)
+    (
+        start_epoch,
+        best_loss,
+        best_accuracy,
+        train_losses,
+        test_losses,
+        accuracies,
+    ) = cp.load_latest(model, optimizer, scheduler, name, device=device)
 
-    # Evaluate the untrained (or freshly loaded) model once so the curves have
-    # a meaningful epoch-0 baseline.  A checkpoint already containing history
-    # must not get another baseline when training is resumed.
+    if callback is not None:
+        callback(
+            "training_start",
+            start_epoch=start_epoch,
+            end_epoch=end_epoch,
+            train_batches=len(train_loader),
+            test_batches=len(test_loader),
+            name=name,
+        )
+
+    # Evaluate a fresh model once for an epoch-0 baseline. A checkpoint with
+    # history must not receive a second baseline after resuming.
     if start_epoch == 1 and not test_losses and not accuracies:
+        if callback is not None:
+            callback(
+                "epoch_start",
+                epoch=0,
+                end_epoch=end_epoch,
+                train_batches=0,
+                test_batches=len(test_loader),
+            )
+
         initial_test_loss, initial_accuracy = test(
-            model, test_loader, criterion, device=device
+            model, test_loader, criterion, device=device, callback=callback
         )
         train_losses.append(None)
         test_losses.append(initial_test_loss)
@@ -152,18 +192,19 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
         )
         save_training_curve(train_losses, test_losses, accuracies, name)
 
-    if callback is not None:
-        callback(
-            "training_start",
-            start_epoch=start_epoch,
-            end_epoch=end_epoch,
-            train_batches=len(train_loader),
-            test_batches=len(test_loader),
-            name=name,
-        )
+        if callback is not None:
+            callback(
+                "epoch_end",
+                epoch=0,
+                train_loss=None,
+                test_loss=initial_test_loss,
+                accuracy=initial_accuracy,
+                best_loss=best_loss,
+                best_accuracy=best_accuracy,
+                is_initial=True,
+            )
 
     for epoch in range(start_epoch, end_epoch + 1):
-
         if callback is not None:
             callback(
                 "epoch_start",
@@ -173,8 +214,19 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
                 test_batches=len(test_loader),
             )
 
-        train_loss = train(model, train_loader, optimizer, criterion, device=device, cutmix_prob=cutmix_prob, cutmix_alpha=cutmix_alpha, callback=callback)
-        test_loss, accuracy = test(model, test_loader, criterion, device=device, callback=callback)
+        train_loss = train(
+            model,
+            train_loader,
+            optimizer,
+            criterion,
+            device=device,
+            cutmix_prob=cutmix_prob,
+            cutmix_alpha=cutmix_alpha,
+            callback=callback,
+        )
+        test_loss, accuracy = test(
+            model, test_loader, criterion, device=device, callback=callback
+        )
 
         step_scheduler(config["scheduler"], scheduler, test_loss)
 
@@ -186,13 +238,49 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
             best_accuracy = accuracy
             best_loss = test_loss
             cp.save_best(model, name)
-            cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
+            cp.save_latest(
+                epoch,
+                model,
+                optimizer,
+                scheduler,
+                best_loss,
+                best_accuracy,
+                train_losses,
+                test_losses,
+                accuracies,
+                config,
+                name,
+            )
         elif accuracy == best_accuracy and test_loss < best_loss - 1e-4:
             best_loss = test_loss
             cp.save_best(model, name)
-            cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
+            cp.save_latest(
+                epoch,
+                model,
+                optimizer,
+                scheduler,
+                best_loss,
+                best_accuracy,
+                train_losses,
+                test_losses,
+                accuracies,
+                config,
+                name,
+            )
         elif epoch % 10 == 0:
-            cp.save_latest(epoch, model, optimizer, scheduler, best_loss, best_accuracy, train_losses, test_losses, accuracies, config, name)
+            cp.save_latest(
+                epoch,
+                model,
+                optimizer,
+                scheduler,
+                best_loss,
+                best_accuracy,
+                train_losses,
+                test_losses,
+                accuracies,
+                config,
+                name,
+            )
 
         save_training_curve(train_losses, test_losses, accuracies, name)
 
@@ -206,5 +294,6 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
                 best_loss=best_loss,
                 best_accuracy=best_accuracy,
             )
+
     if callback is not None:
         callback("training_end")

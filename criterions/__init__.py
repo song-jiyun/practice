@@ -9,6 +9,7 @@ criterion_list = {
 def get_criterion_list():
     return list(criterion_list.keys())
 
+
 def load_criterion(config, info):
     name = config["criterion"]
     criterion = criterion_list[name](config, info)
