@@ -12,17 +12,18 @@ def load_imagenet():
     }
 
     transform_train = transforms.Compose([
-        transforms.RandomCrop(image_size, padding=4),
+        transforms.RandomResizedCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.AutoAugment(transforms.AutoAugmentPolicy.IMAGENET),
         transforms.ToTensor(),
-        transforms.Normalize(mean, std)
+        transforms.Normalize(mean, std),
     ])
 
     transform_test = transforms.Compose([
-        transforms.Resize(image_size),
+        transforms.Resize(256),
+        transforms.CenterCrop(image_size),
         transforms.ToTensor(),
-        transforms.Normalize(mean, std)
+        transforms.Normalize(mean, std),
     ])
 
     train_dataset = datasets.ImageNet(root='./data', split='train', transform=transform_train)

@@ -116,9 +116,41 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    name = f'{config['dataset']['dataset']}_{config['model']['model']}_{config['optimizer']['optimizer']}_{config['scheduler']['scheduler']}_{config['criterion']['criterion']}_{train_loader.batch_size}'
+    name = (
+        f"{config['dataset']['dataset']}+{train_loader.batch_size}+"
+        f"{config['model']['model']}+{config['optimizer']['optimizer']}+"
+        f"{config['scheduler']['scheduler']}+{config['criterion']['criterion']}"
+    )
 
     start_epoch, best_loss, best_accuracy, train_losses, test_losses, accuracies = cp.load_latest(model, optimizer, scheduler, name, device=device)
+
+    # Evaluate the untrained (or freshly loaded) model once so the curves have
+    # a meaningful epoch-0 baseline.  A checkpoint already containing history
+    # must not get another baseline when training is resumed.
+    if start_epoch == 1 and not test_losses and not accuracies:
+        initial_test_loss, initial_accuracy = test(
+            model, test_loader, criterion, device=device
+        )
+        train_losses.append(None)
+        test_losses.append(initial_test_loss)
+        accuracies.append(initial_accuracy)
+        best_loss = initial_test_loss
+        best_accuracy = initial_accuracy
+        cp.save_best(model, name)
+        cp.save_latest(
+            0,
+            model,
+            optimizer,
+            scheduler,
+            best_loss,
+            best_accuracy,
+            train_losses,
+            test_losses,
+            accuracies,
+            config,
+            name,
+        )
+        save_training_curve(train_losses, test_losses, accuracies, name)
 
     if callback is not None:
         callback(
@@ -127,6 +159,7 @@ def training(config, model, train_loader, test_loader, optimizer, scheduler, cri
             end_epoch=end_epoch,
             train_batches=len(train_loader),
             test_batches=len(test_loader),
+            name=name,
         )
 
     for epoch in range(start_epoch, end_epoch + 1):

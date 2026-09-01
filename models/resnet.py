@@ -8,8 +8,9 @@ def load_resnet(model, info):
 
     if in_channels != 3:
         model.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
+
+    if getattr(model, "fc", None) is None or getattr(model.fc, "out_features", None) != num_classes:
+        model.fc = nn.Linear(model.fc.in_features, num_classes)
 
     return model
 
